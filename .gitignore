@@ -1,0 +1,8 @@
+node_modules
+.env
+.notes
+output
+.vscode
+dist
+.turbo
+.DS_Store
