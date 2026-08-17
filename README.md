@@ -126,8 +126,13 @@ The portable LiveKit path is:
 - `src/livekit/identity.ts`: deterministic room, bridge, and agent identities
   shared by token creation and the worker
 - `src/livekit/create_bridge_token.ts`: creates a room-scoped participant token
-  with microphone-only publishing, subscriptions, and an atomic named-agent
-  dispatch
+  with microphone-only publishing and subscriptions
+- `src/livekit/ensure_agent_dispatch.ts`: lists existing LiveKit Agent
+  dispatches and creates one when the named agent is not already pending or
+  running, so a full Output Media reload into a still-open room still gets an
+  agent
+- `src/client/bridge-session.ts`: keeps one BrowserBridge across Vite Fast
+  Refresh of the UI so saving `App.tsx` does not tear down meeting audio
 - `src/livekit/browser_bridge.ts`: connects with automatic subscription off,
   publishes Recall meeting audio, selects the named agent's microphone track,
   attaches playback, and reconciles restarts and reconnects
@@ -139,15 +144,16 @@ The portable LiveKit path is:
   input binding
 
 `create_bridge_token` accepts verified session claims plus LiveKit server
-credentials and returns only browser-safe connection details. The browser
-bridge accepts those details, one managed audio element, and a status callback.
-Its invariants are one meeting microphone publication and one attached agent
-audio track.
+credentials and returns only browser-safe connection details. The token server
+calls `ensure_agent_dispatch` before minting that token so a reload into an
+already-open room still gets an agent. The browser bridge accepts those
+details, one managed audio element, and a status callback. Its invariants are
+one meeting microphone publication and one attached agent audio track.
 
 The following files are replaceable adapters:
 
-- Replace `src/server/` with any backend that verifies the application session
-  and calls `create_bridge_token`.
+- Replace `src/server/` with any backend that verifies the application session,
+  calls `ensure_agent_dispatch`, then `create_bridge_token`.
 - Replace `src/client/App.tsx` and Tailwind with any UI that supplies an audio
   element and consumes bridge status events.
 - Replace Vite with another browser build system.
@@ -181,6 +187,19 @@ Remote DevTools, verify the token endpoint succeeds, the agent participant has
 the expected `voice-agent-...` identity and `agent` kind, and its microphone
 track is published. The bridge deliberately ignores every other participant
 and track.
+
+If the page stays on "Waiting for the agent" after a full Output Media reload,
+the token server should have logged `agent_dispatch_ensured` with `created` or
+`reused`. Token-embedded `roomConfig.agents` is not used: LiveKit only applies
+that dispatch when it first creates the room, so a reconnect into the still-open
+room would never start a new agent.
+
+If the page says **Listening** after you save `App.tsx` but the agent never
+replies, Fast Refresh remounted the UI, disconnected LiveKit, and republished a
+new microphone while the existing AgentSession stayed on the ended track. The
+sample now keeps the LiveKit bridge across Fast Refresh (`bridge_session_reused`
+in Remote DevTools). A full page reload still disconnects; the worker then
+shuts down so the next token fetch can dispatch a fresh agent.
 
 ### Autoplay failure
 
@@ -245,6 +264,7 @@ For each run, record the `elapsed_ms` values emitted for:
 ```sh
 npm run typecheck
 npm run lint
+npm run test
 npm run build
 ```
 

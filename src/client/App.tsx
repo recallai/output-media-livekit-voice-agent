@@ -1,14 +1,19 @@
 // REPLACEABLE — Sample Output Media page UI.
-// Recovers the session, fetches LiveKit connection details, mounts BrowserBridge
-// on a hidden <audio> element, and shows connection checkpoints. Swap this UI
-// for your own; keep the audio element + bridge wiring.
+// Recovers the session, fetches LiveKit connection details, and attaches the
+// shared BrowserBridge to a hidden <audio> element. Fast Refresh remounts this
+// file; keep the LiveKit connection in bridge-session.ts so UI edits do not
+// tear down meeting audio. Swap this UI for your own; keep the audio element
+// plus startOrReuseBridgeSession / attachBridgeSession wiring.
 
 import { useEffect, useRef, useState } from "react";
 import {
     INITIAL_BRIDGE_STATUS,
     type BridgeStatus,
 } from "../livekit/bridge_status";
-import { BrowserBridge } from "../livekit/browser_bridge";
+import {
+    attachBridgeSession,
+    startOrReuseBridgeSession,
+} from "./bridge-session";
 import { fetchConnectionDetails } from "./connection-details";
 import { recoverSessionToken } from "./session-token";
 
@@ -72,7 +77,6 @@ export default function App() {
     const [status, setStatus] = useState<BridgeStatus>(INITIAL_BRIDGE_STATUS);
 
     useEffect(() => {
-        let bridge: BrowserBridge | null = null;
         let cancelled = false;
 
         performance.mark("recall-page-initialized");
@@ -85,16 +89,26 @@ export default function App() {
 
         async function startBridge(): Promise<void> {
             try {
+                if (!audioRef.current) return;
+                if (attachBridgeSession(audioRef.current, setStatus)) {
+                    console.info(
+                        JSON.stringify({
+                            event: "bridge_session_reused",
+                            elapsed_ms: Math.round(performance.now()),
+                        }),
+                    );
+                    return;
+                }
+
                 const sessionToken = recoverSessionToken();
                 const connectionDetails = await fetchConnectionDetails(sessionToken);
                 if (cancelled || !audioRef.current) return;
 
-                bridge = new BrowserBridge({
-                    connection_details: connectionDetails,
-                    audio_element: audioRef.current,
-                    on_status: setStatus,
+                await startOrReuseBridgeSession({
+                    connectionDetails,
+                    audioElement: audioRef.current,
+                    onStatus: setStatus,
                 });
-                await bridge.connect();
             } catch (error) {
                 if (cancelled) return;
                 console.error(
@@ -118,7 +132,6 @@ export default function App() {
 
         return () => {
             cancelled = true;
-            if (bridge) void bridge.close();
         };
     }, []);
 
@@ -132,7 +145,7 @@ export default function App() {
                         <p className="mb-2 text-sm font-semibold tracking-[0.2em] text-blue-400 uppercase">
                             Recall.ai + LiveKit
                         </p>
-                        <h1 className="text-3xl font-semibold">Voice Agent Bridge</h1>
+                        <h1 className="text-3xl font-semibold">Voice Agent Jake</h1>
                     </div>
                     <div
                         className={`rounded-full px-4 py-2 text-sm font-medium ${

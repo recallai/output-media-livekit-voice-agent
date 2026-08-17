@@ -16,7 +16,8 @@
         "start:client": "vite preview --host 0.0.0.0",
         "start:agent": "tsx src/agent/main.ts start",
         "typecheck": "tsc --noEmit",
-        "lint": "eslint \"src/**/*.{ts,tsx}\""
+        "lint": "eslint \"src/**/*.{ts,tsx}\"",
+        "test": "tsx --test src/livekit/ensure_agent_dispatch.test.ts src/livekit/create_bridge_token.test.ts"
     },
     "engines": {
         "node": ">=20.19"

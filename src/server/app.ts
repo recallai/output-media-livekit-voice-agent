@@ -1,6 +1,7 @@
 // REPLACEABLE — Express HTTP surface for this sample.
-// Verifies the Output Media session and returns LiveKit connection details.
-// Keep the verify → create_bridge_token flow; swap Express for any backend you prefer.
+// Verifies the Output Media session, ensures a LiveKit Agent dispatch, and
+// returns LiveKit connection details. Keep the verify → ensure_agent_dispatch
+// → create_bridge_token flow; swap Express for any backend you prefer.
 
 import express, { type Express } from "express";
 import { z } from "zod";
@@ -9,6 +10,10 @@ import {
     create_bridge_token,
     type LiveKitBridgeTokenConfig,
 } from "../livekit/create_bridge_token";
+import {
+    ensure_agent_dispatch,
+    type AgentDispatchApi,
+} from "../livekit/ensure_agent_dispatch";
 
 const token_request_schema = z.object({
     session_token: z.string().min(1),
@@ -16,6 +21,7 @@ const token_request_schema = z.object({
 
 export interface ServerAppConfig extends LiveKitBridgeTokenConfig {
     output_media_signing_secret: string;
+    dispatch_api: AgentDispatchApi;
 }
 
 export function create_app(config: ServerAppConfig): Express {
@@ -48,6 +54,23 @@ export function create_app(config: ServerAppConfig): Express {
         }
 
         try {
+            const dispatch = await ensure_agent_dispatch({
+                dispatch_api: config.dispatch_api,
+                room_name: claims.room_name,
+                agent_name: claims.agent_name,
+                metadata: JSON.stringify({
+                    session_id: claims.session_id,
+                    bridge_identity: claims.bridge_identity,
+                    agent_identity: claims.agent_identity,
+                }),
+            });
+            console.info(
+                JSON.stringify({
+                    event: "agent_dispatch_ensured",
+                    action: dispatch.action,
+                }),
+            );
+
             const connection_details = await create_bridge_token(claims, config);
             response.set("Cache-Control", "no-store");
             response.status(201).json(connection_details);

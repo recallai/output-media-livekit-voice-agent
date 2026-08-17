@@ -51,8 +51,8 @@ function default_logger(event: string, context: LogContext = {}): void {
 export class BrowserBridge {
     private readonly room = new Room();
     private readonly connection_details: LiveKitConnectionDetails;
-    private readonly audio_element: HTMLAudioElement;
-    private readonly on_status: (status: BridgeStatus) => void;
+    private audio_element: HTMLAudioElement;
+    private on_status: (status: BridgeStatus) => void;
     private readonly logger: BridgeLogger;
     private readonly started_at = performance.now();
     private status: BridgeStatus = INITIAL_BRIDGE_STATUS;
@@ -76,6 +76,35 @@ export class BrowserBridge {
         this.audio_element.autoplay = true;
         this.audio_element.addEventListener("playing", this.handle_audio_playing);
         this.emit_status({});
+    }
+
+    get_status(): BridgeStatus {
+        return this.status;
+    }
+
+    set_on_status(on_status: (status: BridgeStatus) => void): void {
+        this.on_status = on_status;
+    }
+
+    adopt_audio_element(audio_element: HTMLAudioElement): void {
+        if (this.audio_element === audio_element) return;
+
+        this.audio_element.removeEventListener("playing", this.handle_audio_playing);
+        this.agent_track?.detach(this.audio_element);
+
+        this.audio_element = audio_element;
+        this.audio_element.autoplay = true;
+        this.audio_element.addEventListener("playing", this.handle_audio_playing);
+
+        if (this.agent_track) {
+            this.agent_track.attach(this.audio_element);
+            void this.audio_element.play().catch((error: unknown) => {
+                this.fail(
+                    "Agent audio autoplay failed in the Output Media browser",
+                    error,
+                );
+            });
+        }
     }
 
     async connect(): Promise<void> {
@@ -428,7 +457,7 @@ export class BrowserBridge {
     };
 
     private readonly handle_audio_playback_changed = (playing: boolean): void => {
-        if (!playing && this.agent_track) {
+        if (!playing && this.agent_track && this.audio_element.isConnected) {
             this.fail("The browser blocked LiveKit Agent audio playback");
         }
     };

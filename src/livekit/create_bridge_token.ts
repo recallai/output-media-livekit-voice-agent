@@ -1,13 +1,11 @@
 // CORE — Mint the browser LiveKit token for the Output Media bridge.
-// Scopes the participant to one room, microphone publish + subscribe, and an
-// atomic named-agent dispatch. Keep LiveKit API secrets on the server; return
-// only browser-safe connection details.
+// Scopes the participant to one room, microphone publish + subscribe. Agent
+// dispatch is not in this JWT: LiveKit only honors token roomConfig.agents
+// when it first creates the room, so reloads would get stuck waiting. Call
+// ensure_agent_dispatch on the server instead. Keep LiveKit API secrets on
+// the server; return only browser-safe connection details.
 
-import {
-    RoomAgentDispatch,
-    RoomConfiguration,
-    TrackSource,
-} from "@livekit/protocol";
+import { TrackSource } from "@livekit/protocol";
 import { AccessToken, type VideoGrant } from "livekit-server-sdk";
 import type { SessionClaims } from "../auth/session_token";
 
@@ -53,18 +51,6 @@ export async function create_bridge_token(
     };
 
     access_token.addGrant(video_grant);
-    access_token.roomConfig = new RoomConfiguration({
-        agents: [
-            new RoomAgentDispatch({
-                agentName: claims.agent_name,
-                metadata: JSON.stringify({
-                    session_id: claims.session_id,
-                    bridge_identity: claims.bridge_identity,
-                    agent_identity: claims.agent_identity,
-                }),
-            }),
-        ],
-    });
 
     return {
         server_url: config.livekit_url,

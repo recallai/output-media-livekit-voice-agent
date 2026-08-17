@@ -60,6 +60,14 @@ module.exports = {
             },
         },
         {
+            files: ["**/*.test.ts"],
+            rules: {
+                "check-file/filename-naming-convention": "off",
+                "@typescript-eslint/naming-convention": "off",
+                "@typescript-eslint/no-floating-promises": "off",
+            },
+        },
+        {
             files: ["**/src/**/*Schema.ts"],
             rules: {
                 "@typescript-eslint/naming-convention": [
@@ -114,7 +122,7 @@ module.exports = {
         },
         {
             files: ["**/src/**/*.ts"],
-            excludedFiles: ["**/src/**/*Schema.ts", "**/client/**/*.ts", "**/*.d.ts"],
+            excludedFiles: ["**/src/**/*Schema.ts", "**/client/**/*.ts", "**/*.d.ts", "**/*.test.ts"],
             rules: {
                 "@typescript-eslint/naming-convention": [
                     "error",

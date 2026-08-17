@@ -12,6 +12,7 @@ import {
     type JobRequest,
     voice,
 } from "@livekit/agents";
+import { RoomEvent, type RemoteParticipant } from "@livekit/rtc-node";
 import { parse_agent_env } from "../config/env";
 import {
     create_session_identity,
@@ -86,6 +87,16 @@ export default defineAgent({
         });
 
         await context.connect();
+
+        // LiveKit only closes the session for a subset of disconnect reasons.
+        // A Vite remount uses a normal participant leave, which left this job
+        // in `listening` on the unpublished microphone. Shut the job down so
+        // the next token fetch can dispatch a fresh AgentSession.
+        const shutdown_when_bridge_leaves = (participant: RemoteParticipant): void => {
+            if (participant.identity !== identity.bridge_identity) return;
+            context.shutdown("bridge participant disconnected");
+        };
+        context.room.on(RoomEvent.ParticipantDisconnected, shutdown_when_bridge_leaves);
 
         void session.generateReply({
             instructions:
